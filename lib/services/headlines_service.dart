@@ -1,5 +1,6 @@
 // ── Headlines Service ────────────────────────────────────────────
 import '../config/api.dart';
+import '../utils/sanitizer.dart';
 import 'api_service.dart';
 
 class HeadlinesService {
@@ -19,12 +20,8 @@ class HeadlinesService {
         if (items is List) {
           return items.map<Map<String, dynamic>>((e) {
             final m = e as Map<String, dynamic>;
-            return {
-              'title': m['title'] ?? '',
-              'source': m['source'] ?? '',
-              'pubDate': m['pubDate'] ?? '',
-              'link': m['link'] ?? '',
-            };
+            // MED-05: Sanitize RSS content to prevent XSS
+            return sanitizeHeadline(m);
           }).toList();
         }
       }

@@ -62,11 +62,12 @@ class CacheTtl {
   static const Duration headlines = Duration(minutes: 5);
   static const Duration alerts = Duration(minutes: 2);
   static const Duration airportsStatus = Duration(minutes: 5);
-  static const Duration forces = Duration(minutes: 15);
-  static const Duration centcom = Duration(minutes: 10);
-  static const Duration liveuamap = Duration(minutes: 5);
+  // HIGH-05: Reduced TTLs for sensitive/military endpoints
+  static const Duration forces = Duration(minutes: 5);
+  static const Duration centcom = Duration(minutes: 5);
+  static const Duration liveuamap = Duration(minutes: 3);
   static const Duration sourcesStatus = Duration(minutes: 1);
-  static const Duration cyber = Duration(minutes: 10);
+  static const Duration cyber = Duration(minutes: 5);
   static const Duration stats = Duration(minutes: 5);
   static const Duration defaultTtl = Duration(minutes: 5);
 }

@@ -4,13 +4,13 @@
 // =============================================================================
 
 import 'dart:async';
-import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import '../config/api.dart';
+import 'secure_storage_service.dart';
 
 // Top-level background handler (must be top-level, not a class method)
 @pragma('vm:entry-point')
@@ -23,10 +23,19 @@ class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  // Lazy init — avoid accessing FirebaseMessaging on web before Firebase.initializeApp()
+  FirebaseMessaging? _messagingInstance;
+  FirebaseMessaging get _messaging {
+    _messagingInstance ??= FirebaseMessaging.instance;
+    return _messagingInstance!;
+  }
   final Dio _dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10)));
+  final _secureStorage = SecureStorageService.instance;
   bool _initialized = false;
   String? _fcmToken;
+
+  // HIGH-04: Token rotation — rotate every 7 days
+  static const Duration _tokenRotationInterval = Duration(days: 7);
 
   String? get fcmToken => _fcmToken;
   bool get isInitialized => _initialized;
@@ -59,7 +68,7 @@ class PushNotificationService {
         settings.authorizationStatus == AuthorizationStatus.provisional) {
 
       // Get APNs token first (iOS only) — retry if null
-      if (Platform.isIOS) {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
         for (int i = 0; i < 3; i++) {
           try {
             final apnsToken = await _messaging.getAPNSToken()
@@ -73,24 +82,14 @@ class PushNotificationService {
         }
       }
 
-      // Get FCM token — retry if null
-      if (_fcmToken == null) {
-        for (int i = 0; i < 3; i++) {
-          try {
-            _fcmToken = await _messaging.getToken()
-                .timeout(const Duration(seconds: 10), onTimeout: () => null);
-            debugPrint('[FCM] Token attempt ${i + 1}: ${_fcmToken != null ? "obtained (${_fcmToken!.substring(0, 20)}...)" : "null"}');
-            if (_fcmToken != null) break;
-            if (i < 2) await Future.delayed(const Duration(seconds: 2));
-          } catch (e) {
-            debugPrint('[FCM] Token error: $e');
-          }
-        }
-      }
+      // HIGH-04: Check if token needs rotation
+      await _ensureValidToken();
 
       // Register with backend
       if (_fcmToken != null) {
         _registerTokenWithBackend(_fcmToken!);
+        // HIGH-01: Store token in encrypted storage
+        await _secureStorage.saveFcmToken(_fcmToken!);
       } else {
         debugPrint('[FCM] WARNING: No FCM token after 3 attempts');
       }
@@ -101,6 +100,7 @@ class PushNotificationService {
           _fcmToken = newToken;
           debugPrint('[FCM] Token refreshed');
           _registerTokenWithBackend(newToken);
+          _secureStorage.saveFcmToken(newToken);
         });
       }
 
@@ -109,6 +109,44 @@ class PushNotificationService {
     }
 
     _initialized = true;
+  }
+
+  // HIGH-04: Token rotation logic
+  Future<void> _ensureValidToken() async {
+    final storedToken = await _secureStorage.getFcmToken();
+    final tokenTs = await _secureStorage.getFcmTokenTimestamp();
+
+    final needsRotation = storedToken == null ||
+        tokenTs == null ||
+        DateTime.now().difference(tokenTs) > _tokenRotationInterval;
+
+    if (needsRotation) {
+      debugPrint('[FCM] Token rotation required');
+      // Delete old token to force new one
+      if (storedToken != null) {
+        try {
+          await _messaging.deleteToken();
+          debugPrint('[FCM] Old token deleted for rotation');
+        } catch (e) {
+          debugPrint('[FCM] Token deletion failed: $e');
+        }
+      }
+    }
+
+    // Get FCM token — retry if null
+    if (_fcmToken == null) {
+      for (int i = 0; i < 3; i++) {
+        try {
+          _fcmToken = await _messaging.getToken()
+              .timeout(const Duration(seconds: 10), onTimeout: () => null);
+          debugPrint('[FCM] Token attempt ${i + 1}: ${_fcmToken != null ? "obtained (${_fcmToken!.substring(0, 20)}...)" : "null"}');
+          if (_fcmToken != null) break;
+          if (i < 2) await Future.delayed(const Duration(seconds: 2));
+        } catch (e) {
+          debugPrint('[FCM] Token error: $e');
+        }
+      }
+    }
   }
 
   // ── Topic Management ──────────────────────────────────────────────
@@ -189,7 +227,7 @@ class PushNotificationService {
         '${Api.base}/api/notifications/register',
         data: {
           'token': token,
-          'platform': Platform.isIOS ? 'ios' : 'android',
+          'platform': (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ? 'ios' : 'android',
         },
       );
     } catch (e) {

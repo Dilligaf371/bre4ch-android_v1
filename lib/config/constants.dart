@@ -37,7 +37,11 @@ enum ThreatLevel {
 const ThreatLevel currentThreatLevel = ThreatLevel.critical;
 
 // ── Google Maps API ───────────────────────────────────────────────
-const String googleMapsApiKey = 'AIzaSyCnBuBuKiQyyc4UDu7RJOfnqrl3mwLwz2w';
+// CRIT-03 FIX: API key injected at build time via --dart-define=GOOGLE_MAPS_API_KEY=...
+const String googleMapsApiKey = String.fromEnvironment(
+  'GOOGLE_MAPS_API_KEY',
+  defaultValue: '',
+);
 
 // ── Map Dark Style ────────────────────────────────────────────────
 /// Same darkMapStyles JSON from the web app's MapView.tsx

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,8 +15,10 @@ const _badgeChannel = MethodChannel('com.qyber.breach/badge');
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase (skip on web if no config)
+  if (!kIsWeb) {
+    await Firebase.initializeApp();
+  }
 
   // Initialize offline cache (non-blocking)
   ApiService.instance.initCache().catchError((e) {
@@ -25,10 +28,12 @@ void main() async {
   // Initialize persistent tile cache for maps
   await initTileCache();
 
-  // Initialize push notifications (non-blocking to avoid launch hang)
-  PushNotificationService.instance.initialize().catchError((e) {
-    debugPrint('[FCM] Init error: $e');
-  });
+  // Initialize push notifications (non-blocking, skip on web)
+  if (!kIsWeb) {
+    PushNotificationService.instance.initialize().catchError((e) {
+      debugPrint('[FCM] Init error: $e');
+    });
+  }
 
   // Connect WebSocket to backend (non-blocking, auto-reconnect)
   BreachSocketService.instance.connect();

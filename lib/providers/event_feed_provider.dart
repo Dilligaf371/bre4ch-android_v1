@@ -4,7 +4,9 @@
 // HTTP: polls HeadlinesService + LiveUAMap when WS is disconnected.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/attack_event.dart';
 import '../services/headlines_service.dart';
@@ -31,6 +33,12 @@ const List<String> _conflictKeywords = [
   'drone', 'bomb', 'nuclear', 'hezbollah', 'gaza', 'gulf', 'navy', 'air force',
   'centcom', 'intercept', 'defense', 'defence', 'houthi', 'yemen', 'lebanon',
 ];
+
+// MED-04: SHA-256 content hash for robust deduplication
+String _contentHash(String title, String source, String date) {
+  final input = '${title.trim().toLowerCase()}|${source.trim().toLowerCase()}|$date';
+  return sha256.convert(utf8.encode(input)).toString();
+}
 
 final _rng = Random();
 
@@ -227,14 +235,19 @@ class EventFeedNotifier extends StateNotifier<List<AttackEvent>> {
     }).toList();
 
     final newOnes = relevant.where((h) {
-      final title = (h as Map<String, dynamic>)['title'] as String? ?? '';
-      return title.isNotEmpty && !_injected.contains(title);
+      final m = h as Map<String, dynamic>;
+      final title = m['title'] as String? ?? '';
+      final source = m['source'] as String? ?? '';
+      final date = m['pubDate'] as String? ?? '';
+      final hash = _contentHash(title, source, date);
+      return title.isNotEmpty && !_injected.contains(hash);
     }).toList();
     if (newOnes.isEmpty) return;
 
     final events = newOnes.map((h) => _liveHeadlineToEvent(h as Map<String, dynamic>)).toList();
     for (final e in events) {
-      _injected.add(e.details);
+      final hash = _contentHash(e.details, e.source ?? '', '');
+      _injected.add(hash);
     }
 
     final merged = [...events, ...state];
@@ -254,13 +267,17 @@ class EventFeedNotifier extends StateNotifier<List<AttackEvent>> {
 
       final newOnes = relevant.where((h) {
         final title = h['title'] as String? ?? '';
-        return title.isNotEmpty && !_injected.contains(title);
+        final source = h['source'] as String? ?? '';
+        final date = h['pubDate'] as String? ?? '';
+        final hash = _contentHash(title, source, date);
+        return title.isNotEmpty && !_injected.contains(hash);
       }).toList();
       if (newOnes.isEmpty) return;
 
       final events = newOnes.map(_liveHeadlineToEvent).toList();
       for (final e in events) {
-        _injected.add(e.details);
+        final hash = _contentHash(e.details, e.source ?? '', '');
+        _injected.add(hash);
       }
 
       final merged = [...events, ...state];
@@ -276,13 +293,16 @@ class EventFeedNotifier extends StateNotifier<List<AttackEvent>> {
 
       final newOnes = events.where((e) {
         final name = e['name'] as String? ?? '';
-        return name.isNotEmpty && !_injected.contains(name);
+        final source = e['source'] as String? ?? 'LiveUAMap';
+        final hash = _contentHash(name, source, '');
+        return name.isNotEmpty && !_injected.contains(hash);
       }).toList();
       if (newOnes.isEmpty) return;
 
       final attackEvents = newOnes.map(_liveuamapToEvent).toList();
       for (final e in attackEvents) {
-        _injected.add(e.details);
+        final hash = _contentHash(e.details, e.source ?? '', '');
+        _injected.add(hash);
       }
 
       final merged = [...attackEvents, ...state];

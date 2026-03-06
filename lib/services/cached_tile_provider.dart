@@ -31,8 +31,10 @@ CacheStore? get persistentStore => _persistentStore;
 /// Shared cached tile provider for all FlutterMap instances.
 /// Uses persistent storage if initialized, otherwise falls back to memory.
 CachedTileProvider createCachedTileProvider() {
+  // Use default MemCacheStore() values (7MB/512KB) — guaranteed to pass assertion
+  final store = _persistentStore ?? MemCacheStore();
   return CachedTileProvider(
     maxStale: const Duration(days: 365),
-    store: _persistentStore ?? MemCacheStore(maxSize: 200, maxEntrySize: 300000),
+    store: store,
   );
 }

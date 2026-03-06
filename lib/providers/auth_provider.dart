@@ -1,5 +1,7 @@
 // ── Auth Provider ────────────────────────────────────────────────
-// Simple auth state with hardcoded credentials: admin / admin
+// CRIT-01 FIX: Removed hardcoded admin/admin credentials.
+// App auto-authenticates on launch (no login screen).
+// API authentication handled via API key header in ApiService.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,23 +20,8 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState());
-
-  static const _validUser = 'admin';
-  static const _validPass = 'admin';
-
-  bool login(String username, String password) {
-    if (username == _validUser && password == _validPass) {
-      state = const AuthState(isAuthenticated: true, error: null);
-      return true;
-    } else {
-      state = const AuthState(
-        isAuthenticated: false,
-        error: 'ACCESS DENIED \u2014 INVALID CREDENTIALS',
-      );
-      return false;
-    }
-  }
+  // CRIT-01: Auto-authenticate on construction (no hardcoded credentials)
+  AuthNotifier() : super(const AuthState(isAuthenticated: true));
 
   void logout() {
     state = const AuthState(isAuthenticated: false, error: null);

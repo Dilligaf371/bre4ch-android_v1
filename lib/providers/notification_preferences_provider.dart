@@ -3,7 +3,7 @@
 // Manages user push notification preferences with persistence
 // =============================================================================
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/push_notification_service.dart';
@@ -108,11 +108,13 @@ class NotificationPreferencesNotifier
     _load();
   }
 
-  final _push = PushNotificationService.instance;
+  // Lazy — avoid touching Firebase on web (not initialized)
+  PushNotificationService? get _push => kIsWeb ? null : PushNotificationService.instance;
 
   static const _prefsPrefix = 'notif_pref_';
 
   Future<void> _load() async {
+    try {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool('${_prefsPrefix}enabled') ?? false;
     final countries =
@@ -132,6 +134,9 @@ class NotificationPreferencesNotifier
       types: types,
       severities: severities,
     );
+    } catch (e) {
+      debugPrint('[NOTIF] Prefs load error: $e');
+    }
   }
 
   Future<void> _save() async {
@@ -150,7 +155,7 @@ class NotificationPreferencesNotifier
     await _save();
     // FCM sync in background — don't block UI
     if (value) {
-      _push.initialize().then((_) => _syncAllSubscriptions()).catchError((e) {
+      _push?.initialize().then((_) => _syncAllSubscriptions()).catchError((e) {
         debugPrint('[NOTIF] Enable sync error: $e');
       });
     } else {
@@ -177,11 +182,11 @@ class NotificationPreferencesNotifier
     // FCM sync in background
     _syncFcm(() async {
       if (subscribe) {
-        await _push.subscribeToCountry(code);
+        await _push?.subscribeToCountry(code);
       } else {
-        await _push.unsubscribeFromCountry(code);
+        await _push?.unsubscribeFromCountry(code);
         for (final city in citiesByCountry[code]?.keys ?? <String>[]) {
-          await _push.unsubscribeFromCity(city);
+          await _push?.unsubscribeFromCity(city);
         }
       }
     });
@@ -196,9 +201,9 @@ class NotificationPreferencesNotifier
     }
     state = state.copyWith(cities: updated);
     await _save();
-    _syncFcm(() => subscribe
-        ? _push.subscribeToCity(slug)
-        : _push.unsubscribeFromCity(slug));
+    _syncFcm(() async => subscribe
+        ? await _push?.subscribeToCity(slug)
+        : await _push?.unsubscribeFromCity(slug));
   }
 
   Future<void> toggleType(String type, bool subscribe) async {
@@ -210,9 +215,9 @@ class NotificationPreferencesNotifier
     }
     state = state.copyWith(types: updated);
     await _save();
-    _syncFcm(() => subscribe
-        ? _push.subscribeToType(type)
-        : _push.unsubscribeFromType(type));
+    _syncFcm(() async => subscribe
+        ? await _push?.subscribeToType(type)
+        : await _push?.unsubscribeFromType(type));
   }
 
   Future<void> toggleSeverity(String level, bool subscribe) async {
@@ -224,14 +229,14 @@ class NotificationPreferencesNotifier
     }
     state = state.copyWith(severities: updated);
     await _save();
-    _syncFcm(() => subscribe
-        ? _push.subscribeToSeverity(level)
-        : _push.unsubscribeFromSeverity(level));
+    _syncFcm(() async => subscribe
+        ? await _push?.subscribeToSeverity(level)
+        : await _push?.unsubscribeFromSeverity(level));
   }
 
   /// Fire-and-forget FCM sync — never blocks UI
   void _syncFcm(Future<void> Function() action) {
-    if (!state.enabled) return;
+    if (!state.enabled || _push == null) return;
     action().catchError((e) {
       debugPrint('[NOTIF] FCM sync error: $e');
     });
@@ -239,32 +244,32 @@ class NotificationPreferencesNotifier
 
   Future<void> _syncAllSubscriptions() async {
     for (final c in state.countries) {
-      try { await _push.subscribeToCountry(c); } catch (_) {}
+      try { await _push?.subscribeToCountry(c); } catch (_) {}
     }
     for (final c in state.cities) {
-      try { await _push.subscribeToCity(c); } catch (_) {}
+      try { await _push?.subscribeToCity(c); } catch (_) {}
     }
     for (final t in state.types) {
-      try { await _push.subscribeToType(t); } catch (_) {}
+      try { await _push?.subscribeToType(t); } catch (_) {}
     }
     for (final s in state.severities) {
-      try { await _push.subscribeToSeverity(s); } catch (_) {}
+      try { await _push?.subscribeToSeverity(s); } catch (_) {}
     }
     debugPrint('[NOTIF] Synced all subscriptions');
   }
 
   Future<void> _unsubscribeAll() async {
     for (final c in state.countries) {
-      try { await _push.unsubscribeFromCountry(c); } catch (_) {}
+      try { await _push?.unsubscribeFromCountry(c); } catch (_) {}
     }
     for (final c in state.cities) {
-      try { await _push.unsubscribeFromCity(c); } catch (_) {}
+      try { await _push?.unsubscribeFromCity(c); } catch (_) {}
     }
     for (final t in state.types) {
-      try { await _push.unsubscribeFromType(t); } catch (_) {}
+      try { await _push?.unsubscribeFromType(t); } catch (_) {}
     }
     for (final s in state.severities) {
-      try { await _push.unsubscribeFromSeverity(s); } catch (_) {}
+      try { await _push?.unsubscribeFromSeverity(s); } catch (_) {}
     }
     debugPrint('[NOTIF] Unsubscribed from all');
   }

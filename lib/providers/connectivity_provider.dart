@@ -13,7 +13,8 @@ final connectivityProvider = StateNotifierProvider<ConnectivityNotifier, bool>(
 );
 
 class ConnectivityNotifier extends StateNotifier<bool> {
-  late final StreamSubscription<List<ConnectivityResult>> _sub;
+  // FIX: nullable to avoid LateInitializationError if dispose() called before _init() completes
+  StreamSubscription<List<ConnectivityResult>>? _sub;
 
   ConnectivityNotifier() : super(true) {
     _init();
@@ -22,11 +23,12 @@ class ConnectivityNotifier extends StateNotifier<bool> {
   Future<void> _init() async {
     // Check current state
     final results = await Connectivity().checkConnectivity();
+    if (!mounted) return;
     state = _isConnected(results);
 
     // Listen for changes
     _sub = Connectivity().onConnectivityChanged.listen((results) {
-      state = _isConnected(results);
+      if (mounted) state = _isConnected(results);
     });
   }
 
@@ -36,7 +38,7 @@ class ConnectivityNotifier extends StateNotifier<bool> {
 
   @override
   void dispose() {
-    _sub.cancel();
+    _sub?.cancel();
     super.dispose();
   }
 }
