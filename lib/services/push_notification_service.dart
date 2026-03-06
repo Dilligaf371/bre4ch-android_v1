@@ -16,7 +16,7 @@ import 'secure_storage_service.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint('[FCM] Background message: ${message.messageId}');
+  if (kDebugMode) debugPrint('[FCM] Background message: ${message.messageId}');
 }
 
 class PushNotificationService {
@@ -62,7 +62,7 @@ class PushNotificationService {
       sound: true,
     );
 
-    debugPrint('[FCM] Permission: ${settings.authorizationStatus}');
+    if (kDebugMode) debugPrint('[FCM] Permission: ${settings.authorizationStatus}');
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
@@ -73,11 +73,11 @@ class PushNotificationService {
           try {
             final apnsToken = await _messaging.getAPNSToken()
                 .timeout(const Duration(seconds: 8), onTimeout: () => null);
-            debugPrint('[FCM] APNs token attempt ${i + 1}: ${apnsToken != null ? "obtained" : "null"}');
+            if (kDebugMode) debugPrint('[FCM] APNs token attempt ${i + 1}: ${apnsToken != null ? "obtained" : "null"}');
             if (apnsToken != null) break;
             if (i < 2) await Future.delayed(const Duration(seconds: 2));
           } catch (e) {
-            debugPrint('[FCM] APNs token error: $e');
+            if (kDebugMode) debugPrint('[FCM] APNs token error: $e');
           }
         }
       }
@@ -91,14 +91,14 @@ class PushNotificationService {
         // HIGH-01: Store token in encrypted storage
         await _secureStorage.saveFcmToken(_fcmToken!);
       } else {
-        debugPrint('[FCM] WARNING: No FCM token after 3 attempts');
+        if (kDebugMode) debugPrint('[FCM] WARNING: No FCM token after 3 attempts');
       }
 
       // Token refresh listener (only once)
       if (!_initialized) {
         _messaging.onTokenRefresh.listen((newToken) {
           _fcmToken = newToken;
-          debugPrint('[FCM] Token refreshed');
+          if (kDebugMode) debugPrint('[FCM] Token refreshed');
           _registerTokenWithBackend(newToken);
           _secureStorage.saveFcmToken(newToken);
         });
@@ -121,14 +121,14 @@ class PushNotificationService {
         DateTime.now().difference(tokenTs) > _tokenRotationInterval;
 
     if (needsRotation) {
-      debugPrint('[FCM] Token rotation required');
+      if (kDebugMode) debugPrint('[FCM] Token rotation required');
       // Delete old token to force new one
       if (storedToken != null) {
         try {
           await _messaging.deleteToken();
-          debugPrint('[FCM] Old token deleted for rotation');
+          if (kDebugMode) debugPrint('[FCM] Old token deleted for rotation');
         } catch (e) {
-          debugPrint('[FCM] Token deletion failed: $e');
+          if (kDebugMode) debugPrint('[FCM] Token deletion failed: $e');
         }
       }
     }
@@ -139,11 +139,11 @@ class PushNotificationService {
         try {
           _fcmToken = await _messaging.getToken()
               .timeout(const Duration(seconds: 10), onTimeout: () => null);
-          debugPrint('[FCM] Token attempt ${i + 1}: ${_fcmToken != null ? "obtained (${_fcmToken!.substring(0, 20)}...)" : "null"}');
+          if (kDebugMode) debugPrint('[FCM] Token attempt ${i + 1}: ${_fcmToken != null ? "obtained" : "null"}');
           if (_fcmToken != null) break;
           if (i < 2) await Future.delayed(const Duration(seconds: 2));
         } catch (e) {
-          debugPrint('[FCM] Token error: $e');
+          if (kDebugMode) debugPrint('[FCM] Token error: $e');
         }
       }
     }
@@ -159,14 +159,14 @@ class PushNotificationService {
     final fullTopic = 'breach_$topic';
     await _messaging.subscribeToTopic(fullTopic);
     await _saveSubscription(fullTopic, true);
-    debugPrint('[FCM] Subscribed: $fullTopic');
+    if (kDebugMode) debugPrint('[FCM] Subscribed: $fullTopic');
   }
 
   Future<void> unsubscribeFromTopic(String topic) async {
     final fullTopic = 'breach_$topic';
     await _messaging.unsubscribeFromTopic(fullTopic);
     await _saveSubscription(fullTopic, false);
-    debugPrint('[FCM] Unsubscribed: $fullTopic');
+    if (kDebugMode) debugPrint('[FCM] Unsubscribed: $fullTopic');
   }
 
   Future<void> subscribeToCountry(String code) =>
@@ -216,7 +216,7 @@ class PushNotificationService {
     for (final topic in subs) {
       await _messaging.subscribeToTopic(topic);
     }
-    debugPrint('[FCM] Restored ${subs.length} subscriptions');
+    if (kDebugMode) debugPrint('[FCM] Restored ${subs.length} subscriptions');
   }
 
   // ── Backend Registration ──────────────────────────────────────────
@@ -231,7 +231,7 @@ class PushNotificationService {
         },
       );
     } catch (e) {
-      debugPrint('[FCM] Token registration failed: $e');
+      if (kDebugMode) debugPrint('[FCM] Token registration failed: $e');
     }
   }
 

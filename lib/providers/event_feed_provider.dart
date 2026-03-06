@@ -13,6 +13,7 @@ import '../services/headlines_service.dart';
 import '../services/liveuamap_service.dart';
 import '../services/breach_socket_service.dart';
 import '../config/api.dart';
+import '../utils/sanitizer.dart';
 
 // ── Source URL mapping ───────────────────────────────────────────
 
@@ -51,8 +52,9 @@ String _randomId(String prefix) {
 // ── Convert live headline to AttackEvent ─────────────────────────
 
 AttackEvent _liveHeadlineToEvent(Map<String, dynamic> h) {
-  final title = h['title'] as String? ?? '';
-  final src = h['source'] as String? ?? '';
+  // MED-05: Sanitize RSS content
+  final title = sanitizeContent(h['title'] as String? ?? '');
+  final src = sanitizeContent(h['source'] as String? ?? '');
   final pubDate = h['pubDate'] as String? ?? '';
   final link = h['link'] as String? ?? '';
 
@@ -104,8 +106,9 @@ AttackEvent _liveHeadlineToEvent(Map<String, dynamic> h) {
 // ── Convert LiveUAMap event to AttackEvent ───────────────────────
 
 AttackEvent _liveuamapToEvent(Map<String, dynamic> e) {
-  final name = e['name'] as String? ?? '';
-  final source = e['source'] as String? ?? 'LiveUAMap';
+  // MED-05: Sanitize external content
+  final name = sanitizeContent(e['name'] as String? ?? '');
+  final source = sanitizeContent(e['source'] as String? ?? 'LiveUAMap');
   final url = e['url'] as String? ?? '';
   final time = e['time'] as int? ?? 0;
 

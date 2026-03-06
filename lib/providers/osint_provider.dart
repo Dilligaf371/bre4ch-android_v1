@@ -10,6 +10,7 @@ import '../models/osint_item.dart';
 import '../services/headlines_service.dart';
 import '../services/centcom_service.dart';
 import '../services/breach_socket_service.dart';
+import '../utils/sanitizer.dart';
 import '../config/api.dart';
 
 // ── Source config ────────────────────────────────────────────────
@@ -90,10 +91,11 @@ String _randomId(String prefix) {
 }
 
 OsintItem liveHeadlineToOsint(Map<String, dynamic> h) {
-  final title = h['title'] as String? ?? '';
+  // MED-05: Sanitize RSS content
+  final title = sanitizeContent(h['title'] as String? ?? '');
   final link = h['link'] as String? ?? '';
   final pubDate = h['pubDate'] as String? ?? '';
-  final src = h['source'] as String? ?? '';
+  final src = sanitizeContent(h['source'] as String? ?? '');
 
   final source = sourceMap[src] ?? OsintSource.reuters;
 

@@ -10,6 +10,7 @@ import '../models/emergency_alert.dart';
 import '../services/headlines_service.dart';
 import '../services/breach_socket_service.dart';
 import '../config/api.dart';
+import '../utils/sanitizer.dart';
 
 // ── Keyword lists ────────────────────────────────────────────────
 
@@ -185,7 +186,8 @@ class EmergencyAlertsNotifier extends StateNotifier<EmergencyAlertsState> {
 
     for (final h in headlines) {
       final map = h as Map<String, dynamic>;
-      final title = map['title'] as String? ?? '';
+      // MED-05: Sanitize RSS content
+      final title = sanitizeContent(map['title'] as String? ?? '');
       if (title.isEmpty) continue;
       if (_seen.contains(title)) continue;
       if (_readHeadlines.contains(title.toUpperCase())) continue;
@@ -203,7 +205,7 @@ class EmergencyAlertsNotifier extends StateNotifier<EmergencyAlertsState> {
 
       _seen.add(title);
       final region = _detectRegion(title);
-      final source = map['source'] as String? ?? '';
+      final source = sanitizeContent(map['source'] as String? ?? '');
       final timestamp = pubTime > 0 ? pubTime : now;
 
       newAlerts.add(EmergencyAlert(

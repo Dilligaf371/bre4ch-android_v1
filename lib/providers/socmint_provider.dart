@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/socmint_item.dart';
 import '../services/headlines_service.dart';
 import '../services/breach_socket_service.dart';
+import '../utils/sanitizer.dart';
 
 // ── Source mapping for platforms ─────────────────────────────────
 
@@ -57,8 +58,9 @@ String _randomId(String prefix) {
 }
 
 SocmintItem _headlineToSocmint(Map<String, dynamic> h, double roll) {
-  final title = h['title'] as String? ?? '';
-  final src = h['source'] as String? ?? '';
+  // MED-05: Sanitize RSS content
+  final title = sanitizeContent(h['title'] as String? ?? '');
+  final src = sanitizeContent(h['source'] as String? ?? '');
   final pubDate = h['pubDate'] as String? ?? '';
 
   final severity = _detectSeverity(title);

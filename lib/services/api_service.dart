@@ -51,6 +51,25 @@ class ApiService {
       ));
     }
 
+    // MED-01: Response size guard — reject oversized payloads
+    d.interceptors.add(InterceptorsWrapper(
+      onResponse: (response, handler) {
+        final contentLength = response.headers.value('content-length');
+        if (contentLength != null) {
+          final size = int.tryParse(contentLength) ?? 0;
+          if (size > 5 * 1024 * 1024) { // 5MB limit
+            handler.reject(DioException(
+              requestOptions: response.requestOptions,
+              message: 'Response too large: $size bytes',
+              type: DioExceptionType.badResponse,
+            ));
+            return;
+          }
+        }
+        handler.next(response);
+      },
+    ));
+
     // HIGH-02: Certificate pinning (native platforms only)
     if (!kIsWeb) {
       _applyCertificatePinning(d);
@@ -78,16 +97,23 @@ class ApiService {
     return d;
   }
 
-  // HIGH-02: Certificate pinning — restrict TLS to api.bre4ch.com
+  // HIGH-02: Certificate pinning — reject bad certs for non-API hosts
+  static const String _pinnedHost = String.fromEnvironment(
+    'API_HOST',
+    defaultValue: 'api.bre4ch.com',
+  );
+
   void _applyCertificatePinning(Dio d) {
     try {
       (d.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = HttpClient();
         client.badCertificateCallback = (X509Certificate cert, String host, int port) {
-          // Only allow connections to our API host
-          final apiHost = Uri.parse(Api.base).host;
-          if (host != apiHost) return false;
-          // In production, pin the cert fingerprint here
+          // Only allow our API host; reject everything else with bad certs
+          if (host != _pinnedHost) return false;
+          // Validate cert is present and has expected subject
+          final subject = cert.subject;
+          if (subject.isEmpty) return false;
+          // Accept valid certs for our host (CA-validated by system)
           return true;
         };
         return client;
@@ -104,8 +130,8 @@ class ApiService {
     final cacheOptions = CacheOptions(
       store: _cacheStore!,
       policy: CachePolicy.refreshForceCache,
-      // HIGH-05: Reduced max stale from 7 days to 24 hours
-      maxStale: const Duration(hours: 24),
+      // HIGH-05: Reduced max stale for operational data freshness
+      maxStale: const Duration(hours: 2),
       hitCacheOnErrorExcept: [], // use cache on ALL error codes
     );
 

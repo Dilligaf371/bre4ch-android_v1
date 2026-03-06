@@ -1,12 +1,10 @@
 // ── Login Screen ─────────────────────────────────────────────────
-// Palantir-styled auth gate — admin / admin
+// CRIT-01: Login disabled — app auto-authenticates. Screen kept for future use.
 
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../config/theme.dart';
-import '../providers/auth_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +20,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passFocus = FocusNode();
   bool _obscure = true;
   bool _loading = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -34,26 +33,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _submit() {
     if (_loading) return;
-    final user = _userCtrl.text.trim();
-    final pass = _passCtrl.text.trim();
-    if (user.isEmpty || pass.isEmpty) return;
-
-    setState(() => _loading = true);
-    ref.read(authProvider.notifier).clearError();
-
-    // Simulate brief auth delay for UX
-    Timer(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      final success = ref.read(authProvider.notifier).login(user, pass);
-      if (!success) {
-        setState(() => _loading = false);
-      }
+    setState(() {
+      _loading = false;
+      _error = 'LOGIN DISABLED — CONTACT ADMINISTRATOR';
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(authProvider);
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -197,7 +184,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 20),
 
                       // ── Error message ──
-                      if (auth.error != null)
+                      if (_error != null)
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -213,7 +200,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  auth.error!,
+                                  _error!,
                                   style: AppTextStyles.mono(
                                     size: 9,
                                     weight: FontWeight.w600,
